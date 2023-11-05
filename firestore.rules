@@ -6,6 +6,11 @@ service cloud.firestore {
     function isModerator() {
       return request.auth.token.isModerator == true;
     }
+    function documentFieldsCheckout(requiredFields, optionalFields) {
+      let allFields = requiredFields.concat(optionalFields);
+      return request.resource.data.keys().hasAll(requiredFields) &&
+        request.resource.data.keys().hasOnly(allFields);
+    }
 
     match /{document=**} {
       allow read, write: if false;
@@ -21,13 +26,21 @@ service cloud.firestore {
       allow read: if (resource.data.visibility == "public") ||
         (resource.data.authorId == request.auth.uid);
       allow update: if (resource.data.authorId == request.auth.uid) ||
-        isModerator()
+        isModerator();
+      allow create: if (request.resource.data.authorId == request.auth.uid) &&
+        documentFieldsCheckout(
+          ["authorId", "visibility", "headline", "content"],
+          ["photo", "tags", "location"]
+        );
     }
     match /rooms/{roomId} {
+      function userIsRoomMod() {
+        return (request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.roomMods);
+      }
       //security rules for rooms here
       match /posts/{postId} {
         allow update: if (resource.data.authorId == request.auth.uid) ||
-          request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.roomMods;
+          userIsRoomMod();
       }
     }
   }

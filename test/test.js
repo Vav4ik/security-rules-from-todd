@@ -229,4 +229,79 @@ describe("Our Social App", () => {
     const testDoc = myUser.firestore().doc(postPath);
     await assertSucceeds(testDoc.update({ content: "after" }));
   });
+
+  it("Allows a user to create a post when they list themselves as an author", async () => {
+    const testDoc = myUser.firestore().collection("posts").doc("newPost");
+    await assertSucceeds(
+      testDoc.set({
+        authorId: myId,
+        visibility: "public",
+        headline: "headline",
+        content: "lorem ipsum",
+      })
+    );
+  });
+
+  it("Doesn't allow a user to create a post when they list somebody else as an author", async () => {
+    const testDoc = myUser.firestore().collection("posts").doc("newPost");
+    await assertFails(
+      testDoc.set({
+        authorId: theirId,
+        visibility: "public",
+        headline: "headline",
+        content: "lorem ipsum",
+      })
+    );
+  });
+
+  it("Can create a post with all required fields", async () => {
+    const testDoc = myUser.firestore().collection("posts").doc("newPost");
+    await assertSucceeds(
+      testDoc.set({
+        authorId: myId,
+        visibility: "public",
+        headline: "headline",
+        content: "lorem ipsum",
+      })
+    );
+  });
+
+  it("Can't create a post without all required fields", async () => {
+    const testDoc = myUser.firestore().collection("posts").doc("newPost");
+    await assertFails(
+      testDoc.set({
+        authorId: myId,
+        visibility: "public",
+      })
+    );
+  });
+
+  it("Can create a post with all required and optional fields", async () => {
+    const testDoc = myUser.firestore().collection("posts").doc("newPost");
+    await assertSucceeds(
+      testDoc.set({
+        authorId: myId,
+        visibility: "public",
+        headline: "headline",
+        content: "lorem ipsum",
+        location: "Bristol",
+        tags: ["firebase", "awesome"],
+        photo: "photo-url_here",
+      })
+    );
+  });
+
+  it("Can't create a post with unapproved fields", async () => {
+    const testDoc = myUser.firestore().collection("posts").doc("newPost");
+    await assertFails(
+      testDoc.set({
+        authorId: myId,
+        visibility: "public",
+        headline: "headline",
+        content: "lorem ipsum",
+        location: "Bristol",
+        not_allowed: true,
+      })
+    );
+  });
 });
