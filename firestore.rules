@@ -2,6 +2,11 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isModerator() {
+      return request.auth.token.isModerator == true;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
@@ -15,6 +20,15 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if (resource.data.visibility == "public") ||
         (resource.data.authorId == request.auth.uid);
+      allow update: if (resource.data.authorId == request.auth.uid) ||
+        isModerator()
+    }
+    match /rooms/{roomId} {
+      //security rules for rooms here
+      match /posts/{postId} {
+        allow update: if (resource.data.authorId == request.auth.uid) ||
+          request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.roomMods;
+      }
     }
   }
 }

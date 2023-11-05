@@ -13,11 +13,17 @@ const myId = "user_abc";
 const myUserData = { name: "User ABC", email: "abc@gamil.com" };
 const theirId = "user_xyz";
 const theirUserData = { name: "User XYZ", email: "xyz@gamil.com" };
-
+const moderatorId = "user_mod";
+const moderatorUserData = {
+  name: "User MOD",
+  email: "mod@gamil.com",
+  isModerator: true,
+};
 describe("Our Social App", () => {
   let testEnv = null;
   let myUser = null;
   let theirUser = null;
+  let moderatorUser = null;
   let noUser = null;
 
   before(async () => {
@@ -46,8 +52,12 @@ describe("Our Social App", () => {
   });
 
   beforeEach(async () => {
-    myUser = testEnv.authenticatedContext(myId); //auth user - me
-    theirUser = testEnv.authenticatedContext(theirId); //auth user - them
+    myUser = testEnv.authenticatedContext(myId, myUserData); //auth user - me
+    theirUser = testEnv.authenticatedContext(theirId, theirUserData); //auth user - them
+    moderatorUser = testEnv.authenticatedContext(
+      moderatorId,
+      moderatorUserData
+    ); //moderaotr user
     noUser = testEnv.unauthenticatedContext(); //not logged in
     await testEnv.clearFirestore();
   });
@@ -114,7 +124,7 @@ describe("Our Social App", () => {
     await assertSucceeds(testDoc.get());
   });
 
-  it("Can read a private public post belonging to the user", async () => {
+  it("Can read a private post belonging to the user", async () => {
     await testEnv.withSecurityRulesDisabled((context) => {
       return context
         .firestore()
@@ -126,7 +136,7 @@ describe("Our Social App", () => {
     await assertSucceeds(testDoc.get());
   });
 
-  it("Can't read a private public post belonging to another user", async () => {
+  it("Can't read a private post belonging to another user", async () => {
     await testEnv.withSecurityRulesDisabled((context) => {
       return context
         .firestore()
@@ -136,5 +146,87 @@ describe("Our Social App", () => {
     });
     const testDoc = myUser.firestore().collection("posts").doc("private_post");
     await assertFails(testDoc.get());
+  });
+
+  it("Allows a user to edit their own post", async () => {
+    await testEnv.withSecurityRulesDisabled((context) => {
+      return context
+        .firestore()
+        .collection("posts")
+        .doc("post_123")
+        .set({ authorId: myId, content: "before" });
+    });
+    const testDoc = myUser.firestore().collection("posts").doc("post_123");
+    await assertSucceeds(testDoc.update({ content: "after" }));
+  });
+
+  it("Doesn't allow user to edit someone else's post", async () => {
+    await testEnv.withSecurityRulesDisabled((context) => {
+      return context
+        .firestore()
+        .collection("posts")
+        .doc("post_123")
+        .set({ authorId: theirId, content: "before" });
+    });
+    const testDoc = myUser.firestore().collection("posts").doc("post_123");
+    await assertFails(testDoc.update({ content: "after" }));
+  });
+
+  it("Allows a moderator to edit someone else's post", async () => {
+    await testEnv.withSecurityRulesDisabled((context) => {
+      return context
+        .firestore()
+        .collection("posts")
+        .doc("post_123")
+        .set({ authorId: theirId, content: "before" });
+    });
+    const testDoc = moderatorUser
+      .firestore()
+      .collection("posts")
+      .doc("post_123");
+    await assertSucceeds(testDoc.update({ content: "after" }));
+  });
+
+  it("Allows a user to edit their own room post", async () => {
+    const postPath = "/rooms/room_abc/posts/post_123";
+    await testEnv.withSecurityRulesDisabled((context) => {
+      return context
+        .firestore()
+        .doc(postPath)
+        .set({ authorId: myId, content: "before" });
+    });
+    const testDoc = myUser.firestore().doc(postPath);
+    await assertSucceeds(testDoc.update({ content: "after" }));
+  });
+
+  it("Doesn't allow a user to edit somebody else's room post", async () => {
+    const postPath = "/rooms/room_abc/posts/post_123";
+    await testEnv.withSecurityRulesDisabled((context) => {
+      return context
+        .firestore()
+        .doc(postPath)
+        .set({ authorId: theirId, content: "before" });
+    });
+    const testDoc = myUser.firestore().doc(postPath);
+    await assertFails(testDoc.update({ content: "after" }));
+  });
+
+  it("Allows a room moderator to edit another person's room post", async () => {
+    const roomPath = "/rooms/room_abc";
+    const postPath = `${roomPath}/posts/post_123`;
+    await testEnv.withSecurityRulesDisabled((context) => {
+      return context
+        .firestore()
+        .doc(roomPath)
+        .set({ topic: "Unit testers", roomMods: [myId, "dummyUser"] });
+    });
+    await testEnv.withSecurityRulesDisabled((context) => {
+      return context
+        .firestore()
+        .doc(postPath)
+        .set({ authorId: theirId, content: "before" });
+    });
+    const testDoc = myUser.firestore().doc(postPath);
+    await assertSucceeds(testDoc.update({ content: "after" }));
   });
 });
