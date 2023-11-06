@@ -304,4 +304,32 @@ describe("Our Social App", () => {
       })
     );
   });
+
+  it("Can edit a post with allowed fields", async () => {
+    await testEnv.withSecurityRulesDisabled((context) => {
+      return context.firestore().collection("posts").doc("post_123").set({
+        authorId: myId,
+        headline: "before headline",
+        content: "before content",
+        visibility: "public",
+      });
+    });
+    const testDoc = myUser.firestore().collection("posts").doc("post_123");
+    await assertSucceeds(testDoc.update({ content: "after_content" }));
+  });
+
+  it("Can't edit a post's forbidden fields", async () => {
+    await testEnv.withSecurityRulesDisabled((context) => {
+      return context.firestore().collection("posts").doc("post_123").set({
+        authorId: myId,
+        headline: "before headline",
+        content: "before content",
+        visibility: "public",
+      });
+    });
+    const testDoc = myUser.firestore().collection("posts").doc("post_123");
+    await assertFails(
+      testDoc.update({ content: "after_content", headline: "after headline" })
+    );
+  });
 });

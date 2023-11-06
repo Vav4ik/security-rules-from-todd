@@ -11,6 +11,10 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(requiredFields) &&
         request.resource.data.keys().hasOnly(allFields);
     }
+    function editOnlyChangesFields(allowedFields) {
+      // return debug(request.resource.data.keys()).hasOnly(allowedFields); //doesn't work due to hydration
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
+    }
 
     match /{document=**} {
       allow read, write: if false;
@@ -25,8 +29,8 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if (resource.data.visibility == "public") ||
         (resource.data.authorId == request.auth.uid);
-      allow update: if (resource.data.authorId == request.auth.uid) ||
-        isModerator();
+      allow update: if ((resource.data.authorId == request.auth.uid) || isModerator()) &&
+        editOnlyChangesFields([ "visibility", "content" ]);
       allow create: if (request.resource.data.authorId == request.auth.uid) &&
         documentFieldsCheckout(
           ["authorId", "visibility", "headline", "content"],
